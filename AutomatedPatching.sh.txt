@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Oracle Database Patching Script With Latest OPATCH Download and Update
+
+# Set the ORACLE_HOME and PATH environment variables
+export ORACLE_HOME=/path/to/oracle_home
+export PATH=$ORACLE_HOME/bin:$PATH
+
+# Set the Oracle SID (System Identifier) and database credentials
+export ORACLE_SID=your_database_sid
+export ORACLE_USER=your_oracle_user
+export ORACLE_PASSWORD=your_oracle_password
+
+
+# Set the OPatch download directory
+OPATCH_DOWNLOAD_DIR="/path/to/opatch_download_directory"
+
+# Get the latest OPatch version information from Oracle Support
+OPATCH_INFO=$(curl -s -u "${ORACLE_SUPPORT_USERNAME}:${ORACLE_SUPPORT_PASSWORD}" "https://support.oracle.com/api/1.2/tools/opatch")
+
+# Extract the OPatch file name and download URL from the response
+OPATCH_FILE=$(echo "$OPATCH_INFO" | grep -oP '(?<=file_name":").*?(?=")')
+OPATCH_URL=$(echo "$OPATCH_INFO" | grep -oP '(?<=url":").*?(?=")')
+
+# Download the OPatch file
+echo "Downloading OPatch: $OPATCH_FILE"
+wget -P "$OPATCH_DOWNLOAD_DIR" "$OPATCH_URL"
+
+# Extract the OPatch archive
+echo "Extracting OPatch archive"
+unzip "$OPATCH_DOWNLOAD_DIR/$OPATCH_FILE" -d "$OPATCH_DOWNLOAD_DIR"
+
+# Stop the Oracle database listener
+lsnrctl stop
+
+# Stop the Oracle database instance
+sqlplus /nolog <<EOF
+CONNECT / AS SYSDBA
+SHUTDOWN IMMEDIATE
+EXIT
+EOF
+
+# Replace the existing OPatch utility
+echo "Updating OPatch utility"
+cp "$OPATCH_DOWNLOAD_DIR/OPatch"/* "$ORACLE_HOME/OPatch"
+
+sleep 20  # Delay of 20 seconds
+
+echo "OPATCH update is completed!"
+
+sleep 05  # Delay of 05 seconds
+
+echo "Begining of Patching activity..."
+
+# Set the patch file name and location
+PATCH_FILE=/path/to/patch_file.zip
+
+# Apply the patch using the OPatch utility
+cd $ORACLE_HOME/OPatch
+./opatch apply -silent $PATCH_FILE
+
+sleep 05  # Delay of 05 seconds
+
+echo "Starting up instance"
+
+# Start the Oracle database instance
+sqlplus /nolog <<EOF
+CONNECT / AS SYSDBA
+STARTUP
+EXIT
+EOF
+
+sleep 05 # Delay of 05 seconds
+
+echo "Starting up listener"
+
+# Start the Oracle database listener
+lsnrctl start
+
+sleep 240  # Delay of 4 minutes (240 seconds)
+
+ps -ef|grep pmon
+ps -ef|grep tns
+ps-ef|grep d.bin
+
+echo "Oracle database patching completed!"
